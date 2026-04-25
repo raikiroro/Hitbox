@@ -1,0 +1,151 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local LocalPlayer = Players.LocalPlayer
+local enabled = false
+local connection = nil
+
+-- ScreenGui
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "CompactHitboxPuller"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+-- Main movable Frame - Compact size
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 240, 0, 130)   -- Smaller but still comfortable
+MainFrame.Position = UDim2.new(0.5, -120, 0.25, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MainFrame.BorderSizePixel = 0
+MainFrame.BackgroundTransparency = 0.1
+MainFrame.Parent = ScreenGui
+
+-- Rounded corners
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 10)
+UICorner.Parent = MainFrame
+
+-- Draggable logic (touch friendly)
+local dragging = false
+local dragInput
+local dragStart
+local startPos
+
+MainFrame.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
+    end
+end)
+
+MainFrame.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and input == dragInput then
+        local delta = input.Position - dragStart
+        MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+
+-- Title
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.BackgroundTransparency = 1
+Title.Text = "Hitbox Puller"
+Title.TextColor3 = Color3.fromRGB(255, 200, 100)
+Title.TextScaled = true
+Title.Font = Enum.Font.GothamBold
+Title.Parent = MainFrame
+
+-- Toggle Button - Good size for mobile fingers (not too big)
+local ToggleButton = Instance.new("TextButton")
+ToggleButton.Size = UDim2.new(0, 190, 0, 55)   -- Balanced size for easy tap
+ToggleButton.Position = UDim2.new(0.5, -95, 0.5, -20)
+ToggleButton.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+ToggleButton.Text = "OFF"
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleButton.TextScaled = true
+ToggleButton.Font = Enum.Font.GothamBold
+ToggleButton.Parent = MainFrame
+
+local ButtonCorner = Instance.new("UICorner")
+ButtonCorner.CornerRadius = UDim.new(0, 12)
+ButtonCorner.Parent = ToggleButton
+
+local function updateButton()
+    if enabled then
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(40, 180, 40)
+        ToggleButton.Text = "ON - Pulled"
+    else
+        ToggleButton.BackgroundColor3 = Color3.fromRGB(180, 40, 40)
+        ToggleButton.Text = "OFF"
+    end
+end
+
+-- Pull hitboxes in front of you (client view only - perfect for sword/tool hits)
+local function pullHitboxes()
+    if not enabled then return end
+    
+    local myChar = LocalPlayer.Character
+    if not myChar or not myChar:FindFirstChild("HumanoidRootPart") then return end
+    
+    local myRoot = myChar.HumanoidRootPart
+    local myCFrame = myRoot.CFrame
+    
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player \~= LocalPlayer and player.Character then
+            local char = player.Character
+            local root = char:FindFirstChild("HumanoidRootPart")
+            if root then
+                -- Balanced offset for easy hitting with tools
+                local offset = Vector3.new(math.random(-4, 4), 2, -5.5)
+                root.CFrame = myCFrame * CFrame.new(offset)
+            end
+        end
+    end
+end
+
+-- Toggle function
+local function toggle()
+    enabled = not enabled
+    updateButton()
+    
+    if enabled then
+        if connection then connection:Disconnect() end
+        connection = RunService.Heartbeat:Connect(pullHitboxes)
+        print("✅ Hitbox Puller ON - Other hitboxes pulled in front (good for swords/tools)")
+    else
+        if connection then
+            connection:Disconnect()
+            connection = nil
+        end
+        print("❌ Hitbox Puller OFF")
+    end
+end
+
+ToggleButton.MouseButton1Click:Connect(toggle)
+
+-- K key support
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.K then
+        toggle()
+    end
+end)
+
+updateButton()
+
+print("✅ Compact Mobile Hitbox Puller loaded!")
+print("Drag the frame to move | Tap button or press K to toggle")
